@@ -1,0 +1,12 @@
+[Unit]
+Description=Galaxy Buds status bridge for the Omarchy bar
+PartOf=graphical-session.target
+After=graphical-session.target
+
+[Service]
+ExecStart=/usr/bin/python3 -I %h/.config/omarchy/plugins/ajhh.galaxybuds/bin/galaxybuds-bridge
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=graphical-session.target
