@@ -1,0 +1,22 @@
+#!/bin/bash
+# omarchy plugin add only clones files, so this is the rest of the install.
+
+set -euo pipefail
+
+root=$(cd "$(dirname "$0")" && pwd)
+units="$HOME/.config/systemd/user"
+
+omarchy pkg aur add galaxybudsclient-bin
+
+mkdir -p "$units"
+install -m644 "$root/systemd/galaxybuds-bridge.service" "$units/"
+install -m644 "$root/systemd/galaxybudsclient.service" "$units/"
+chmod +x "$root/bin/galaxybuds-bridge"
+
+systemctl --user daemon-reload
+systemctl --user enable galaxybudsclient.service galaxybuds-bridge.service
+systemctl --user restart galaxybudsclient.service galaxybuds-bridge.service
+
+omarchy plugin enable ajhh.galaxybuds || true
+
+echo "Listo. La primera vez abre GalaxyBudsClient (galaxybudsclient) y elige tus Buds en el asistente."

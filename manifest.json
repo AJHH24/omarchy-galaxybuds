@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "id": "ajhh.galaxybuds",
+  "name": "Galaxy Buds",
+  "version": "0.1.0",
+  "author": "ajhh",
+  "license": "MIT",
+  "description": "Samsung Galaxy Buds en la barra de Omarchy: batería de cada auricular y del estuche, estado en el oído, y atajos de ANC, sonido ambiente, detección de conversación y búsqueda. Usa GalaxyBudsClient por D-Bus.",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "Panel.qml"
+  },
+  "barWidget": {
+    "displayName": "Galaxy Buds",
+    "description": "Batería y controles de tus Galaxy Buds",
+    "category": "Audio",
+    "allowMultiple": false,
+    "defaultSection": "right",
+    "defaults": {
+      "hideWhenDisconnected": false
+    },
+    "schema": [
+      {
+        "key": "hideWhenDisconnected",
+        "type": "boolean",
+        "label": "Ocultar el icono cuando no hay Buds conectados",
+        "defaultValue": false
+      }
+    ]
+  }
+}

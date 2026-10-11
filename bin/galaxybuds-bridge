@@ -1,0 +1,188 @@
+#!/usr/bin/env python3
+# Mirrors GalaxyBudsClient's D-Bus device object into one JSON file the panel watches.
+#
+#   $XDG_STATE_HOME/galaxybuds/status.json
+#
+# Absent file: this bridge is not running. "app_running": false: GalaxyBudsClient is not.
+# Updates are pushed by PropertiesChanged; nothing is polled except a slow safety refresh.
+
+import json
+import os
+import signal
+import sys
+
+import gi
+
+gi.require_version("Gio", "2.0")
+from gi.repository import Gio, GLib  # noqa: E402
+
+try:
+    gi.require_version("GLibUnix", "2.0")
+    from gi.repository import GLibUnix  # noqa: E402
+
+    unix_signal_add = GLibUnix.signal_add
+except (ImportError, ValueError):
+    unix_signal_add = GLib.unix_signal_add
+
+SERVICE = "me.timschneeberger.GalaxyBudsClient"
+DEVICE_PATH = "/me/timschneeberger/galaxybudsclient/device"
+DEVICE_IFACE = "me.timschneeberger.GalaxyBudsClient.Device"
+PROPS_IFACE = "org.freedesktop.DBus.Properties"
+SCHEMA_VERSION = 1
+# The device object comes and goes without a signal of its own, so this catches anything missed.
+SAFETY_REFRESH_S = 60
+
+state_dir = os.path.join(
+    os.environ.get("XDG_STATE_HOME") or os.path.expanduser("~/.local/state"), "galaxybuds"
+)
+state_path = os.path.join(state_dir, "status.json")
+
+session = Gio.bus_get_sync(Gio.BusType.SESSION)
+system = Gio.bus_get_sync(Gio.BusType.SYSTEM)
+loop = GLib.MainLoop()
+app_running = False
+last_written = None
+pending_refresh = None
+
+
+def write_status(status):
+    global last_written
+    line = json.dumps(status, sort_keys=True, ensure_ascii=False)
+    if line == last_written:
+        return
+    os.makedirs(state_dir, exist_ok=True)
+    tmp = state_path + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        f.write(line + "\n")
+    os.replace(tmp, state_path)
+    last_written = line
+
+
+def int_or(value, fallback=-1):
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return fallback
+
+
+def status_from(props):
+    # Tmds.DBus publishes the C# fields without their leading underscore; accept both spellings.
+    p = {k.lstrip("_"): v for k, v in props.items()}
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "app_running": True,
+        "connected": True,
+        "name": str(p.get("Name", "")),
+        "address": str(p.get("Address", "")),
+        "model": str(p.get("Model", "")),
+        "firmware": str(p.get("FirmwareVersion", "")),
+        "battery": {
+            "left": int_or(p.get("BatteryLeft")),
+            "right": int_or(p.get("BatteryRight")),
+            "case": int_or(p.get("BatteryCase")),
+        },
+        "wear": {
+            "left": str(p.get("WearStateLeft", "Disconnected")),
+            "right": str(p.get("WearStateRight", "Disconnected")),
+        },
+        # Empty and -1 when GalaxyBudsClient predates these properties or the model lacks them.
+        "noise_mode": str(p.get("NoiseControlMode", "")),
+        "ambient": {
+            "level": int_or(p.get("AmbientSoundVolume")),
+            "max": int_or(p.get("AmbientSoundVolumeMax")),
+        },
+    }
+
+
+def refresh(*_):
+    if not app_running:
+        write_status({"schema_version": SCHEMA_VERSION, "app_running": False, "connected": False})
+        return False
+    try:
+        reply = session.call_sync(
+            SERVICE, DEVICE_PATH, PROPS_IFACE, "GetAll",
+            GLib.Variant("(s)", (DEVICE_IFACE,)), GLib.VariantType("(a{sv})"),
+            Gio.DBusCallFlags.NONE, 3000, None,
+        )
+        write_status(status_from(reply.unpack()[0]))
+    except GLib.Error:
+        # No device object means the app is up but no Buds are connected to it.
+        write_status({"schema_version": SCHEMA_VERSION, "app_running": True, "connected": False})
+    return False
+
+
+def schedule_refresh(delay_ms=150):
+    # Coalesces a burst of PropertiesChanged signals into one read.
+    global pending_refresh
+    if pending_refresh is not None:
+        GLib.source_remove(pending_refresh)
+
+    def fire():
+        global pending_refresh
+        pending_refresh = None
+        refresh()
+        return False
+
+    pending_refresh = GLib.timeout_add(delay_ms, fire)
+
+
+def on_name_appeared(*_):
+    global app_running
+    app_running = True
+    schedule_refresh(500)
+
+
+def on_name_vanished(*_):
+    global app_running
+    app_running = False
+    refresh()
+
+
+def on_device_props(*_):
+    schedule_refresh()
+
+
+def on_bluez_props(_conn, _sender, _path, _iface, _signal, params):
+    iface, changed, _ = params.unpack()
+    if iface == "org.bluez.Device1" and "Connected" in changed:
+        # GalaxyBudsClient opens its RFCOMM channel a moment after BlueZ reports the link.
+        schedule_refresh(2000)
+        GLib.timeout_add(6000, refresh)
+
+
+def safety_refresh():
+    refresh()
+    return True
+
+
+def quit_cleanly(*_):
+    try:
+        os.remove(state_path)
+    except FileNotFoundError:
+        pass
+    loop.quit()
+    return False
+
+
+def main():
+    Gio.bus_watch_name_on_connection(
+        session, SERVICE, Gio.BusNameWatcherFlags.NONE, on_name_appeared, on_name_vanished
+    )
+    session.signal_subscribe(
+        SERVICE, PROPS_IFACE, "PropertiesChanged", DEVICE_PATH, None,
+        Gio.DBusSignalFlags.NONE, on_device_props,
+    )
+    system.signal_subscribe(
+        "org.bluez", PROPS_IFACE, "PropertiesChanged", None, None,
+        Gio.DBusSignalFlags.NONE, on_bluez_props,
+    )
+    GLib.timeout_add_seconds(SAFETY_REFRESH_S, safety_refresh)
+    unix_signal_add(GLib.PRIORITY_DEFAULT, signal.SIGTERM, quit_cleanly)
+    unix_signal_add(GLib.PRIORITY_DEFAULT, signal.SIGINT, quit_cleanly)
+    refresh()
+    loop.run()
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
