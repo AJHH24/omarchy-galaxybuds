@@ -25,17 +25,23 @@ except (ImportError, ValueError):
     unix_signal_add = GLib.unix_signal_add
 
 SERVICE = "me.timschneeberger.GalaxyBudsClient"
+APP_PATH = "/me/timschneeberger/galaxybudsclient"
+APP_IFACE = "me.timschneeberger.GalaxyBudsClient.Application"
 DEVICE_PATH = "/me/timschneeberger/galaxybudsclient/device"
 DEVICE_IFACE = "me.timschneeberger.GalaxyBudsClient.Device"
 PROPS_IFACE = "org.freedesktop.DBus.Properties"
 SCHEMA_VERSION = 1
 # The device object comes and goes without a signal of its own, so this catches anything missed.
 SAFETY_REFRESH_S = 60
+# Time the app gets to reconnect on its own before the bridge asks it to.
+NUDGE_DELAY_MS = 4000
 
 state_dir = os.path.join(
     os.environ.get("XDG_STATE_HOME") or os.path.expanduser("~/.local/state"), "galaxybuds"
 )
 state_path = os.path.join(state_dir, "status.json")
+# The Buds' address outlives a reboot here, so a link at boot can be matched before the app has seen them.
+address_path = os.path.join(state_dir, "address")
 
 session = Gio.bus_get_sync(Gio.BusType.SESSION)
 system = Gio.bus_get_sync(Gio.BusType.SYSTEM)
@@ -43,6 +49,28 @@ loop = GLib.MainLoop()
 app_running = False
 last_written = None
 pending_refresh = None
+buds_connected = False
+
+
+def read_address():
+    try:
+        with open(address_path, encoding="utf-8") as f:
+            return f.read().strip().upper()
+    except OSError:
+        return ""
+
+
+def remember_address(address):
+    if address and address != read_address():
+        os.makedirs(state_dir, exist_ok=True)
+        with open(address_path, "w", encoding="utf-8") as f:
+            f.write(address + "\n")
+
+
+def bluez_path_address(path):
+    # /org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF -> AA:BB:CC:DD:EE:FF
+    tail = path.rsplit("/", 1)[-1]
+    return tail[4:].replace("_", ":").upper() if tail.startswith("dev_") else ""
 
 
 def write_status(status):
@@ -104,10 +132,49 @@ def refresh(*_):
             GLib.Variant("(s)", (DEVICE_IFACE,)), GLib.VariantType("(a{sv})"),
             Gio.DBusCallFlags.NONE, 3000, None,
         )
-        write_status(status_from(reply.unpack()[0]))
+        status = status_from(reply.unpack()[0])
+        write_status(status)
+        remember_address(status["address"].upper())
+        set_connected(True)
     except GLib.Error:
         # No device object means the app is up but no Buds are connected to it.
         write_status({"schema_version": SCHEMA_VERSION, "app_running": True, "connected": False})
+        set_connected(False)
+    return False
+
+
+def set_connected(value):
+    global buds_connected
+    buds_connected = value
+
+
+def nudge_connect():
+    # GalaxyBudsClient gives up after its first five attempts and never retries on Linux,
+    # so Buds that were off when it started are only picked up if something asks it to.
+    refresh()
+    if not app_running or buds_connected:
+        return False
+    session.call(
+        SERVICE, APP_PATH, APP_IFACE, "ExecuteAction", GLib.Variant("(s)", ("Connect",)),
+        None, Gio.DBusCallFlags.NONE, 5000, None, None,
+    )
+    GLib.timeout_add(5000, refresh)
+    GLib.timeout_add(12000, refresh)
+    return False
+
+
+def buds_linked_in_bluez(address):
+    try:
+        reply = system.call_sync(
+            "org.bluez", "/", "org.freedesktop.DBus.ObjectManager", "GetManagedObjects",
+            None, None, Gio.DBusCallFlags.NONE, 3000, None,
+        )
+    except GLib.Error:
+        return False
+    for path, ifaces in reply.unpack()[0].items():
+        dev = ifaces.get("org.bluez.Device1")
+        if dev and bluez_path_address(path) == address and dev.get("Connected"):
+            return True
     return False
 
 
@@ -130,6 +197,8 @@ def on_name_appeared(*_):
     global app_running
     app_running = True
     schedule_refresh(500)
+    # The app makes its own first attempt at startup; only step in if that one failed.
+    GLib.timeout_add(NUDGE_DELAY_MS * 3, nudge_if_linked)
 
 
 def on_name_vanished(*_):
@@ -142,12 +211,22 @@ def on_device_props(*_):
     schedule_refresh()
 
 
-def on_bluez_props(_conn, _sender, _path, _iface, _signal, params):
+def on_bluez_props(_conn, _sender, path, _iface, _signal, params):
     iface, changed, _ = params.unpack()
     if iface == "org.bluez.Device1" and "Connected" in changed:
         # GalaxyBudsClient opens its RFCOMM channel a moment after BlueZ reports the link.
         schedule_refresh(2000)
         GLib.timeout_add(6000, refresh)
+        known = read_address()
+        if changed["Connected"] and (not known or bluez_path_address(path) == known):
+            GLib.timeout_add(NUDGE_DELAY_MS, nudge_connect)
+
+
+def nudge_if_linked():
+    known = read_address()
+    if known and buds_linked_in_bluez(known):
+        nudge_connect()
+    return False
 
 
 def safety_refresh():
