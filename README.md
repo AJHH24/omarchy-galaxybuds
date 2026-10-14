@@ -42,5 +42,6 @@ Cuando los PRs lleguen al AUR, borrar esos dos archivos, ejecutar `systemctl --u
 
 ## Notas
 
+- GalaxyBudsClient se rinde si los Buds estaban apagados cuando arrancó y no vuelve a intentarlo. El puente lo cubre: cuando BlueZ conecta los Buds (dirección guardada en `~/.local/state/galaxybuds/address`) y la app sigue sin ellos tras 4 s, le manda la acción `Connect`.
 - Si el plugin deja de cargar tras editarlo, ejecutar `omarchy restart shell`: la recarga en caliente conserva el QML viejo después de un error.
 - IPC: `omarchy-shell galaxybuds off|ambient|anc|cycle|mode|battery` y `omarchy-shell galaxybuds ambientLevel 1..5`.
