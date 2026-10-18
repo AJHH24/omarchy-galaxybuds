@@ -6,17 +6,23 @@ Plugin personal para la barra de Omarchy que muestra mis Galaxy Buds4 Pro: bater
 Buds ─► GalaxyBudsClient ─D-Bus─► bin/galaxybuds-bridge ─► ~/.local/state/galaxybuds/status.json ─► Panel.qml
 ```
 
-## Restaurar en una instalación nueva
+## Instalar en otra computadora (por ejemplo, la laptop)
 
-1. Clonar este repo en `~/.config/omarchy/plugins/ajhh.galaxybuds`.
-2. Ejecutar `./setup`. Instala `galaxybudsclient-bin` del AUR, activa los servicios de usuario y el plugin.
-3. Abrir GalaxyBudsClient una vez y elegir los Buds en el asistente.
+1. Emparejar los Buds con esa computadora por Bluetooth.
+2. Iniciar sesión en GitHub (el repo es privado): `gh auth login`.
+3. Clonar e instalar:
+   ```bash
+   gh repo clone AJHH24/omarchy-galaxybuds ~/.config/omarchy/plugins/ajhh.galaxybuds
+   ~/.config/omarchy/plugins/ajhh.galaxybuds/setup
+   ```
+   `setup` instala GalaxyBudsClient del AUR, descarga la versión parcheada desde la release `gbc-ipc-1` de este repo (verifica su SHA256), instala los servicios de usuario y activa el plugin.
+4. Abrir GalaxyBudsClient una vez desde el lanzador y elegir los Buds en el asistente.
 
-Con eso funciona todo menos el modo de escucha y el nivel de ambiente, que necesitan la versión parcheada de GalaxyBudsClient (paso siguiente).
+Para traer cambios después: `git -C ~/.config/omarchy/plugins/ajhh.galaxybuds pull` y, si cambió el puente, `systemctl --user restart galaxybuds-bridge`.
 
 ## Versión parcheada de GalaxyBudsClient
 
-Mientras no se publiquen mis PRs en una versión oficial ([#751](https://github.com/timschneeb/GalaxyBudsClient/pull/751), [#752](https://github.com/timschneeb/GalaxyBudsClient/pull/752), [#753](https://github.com/timschneeb/GalaxyBudsClient/pull/753)), uso una compilación propia:
+`setup` ya la descarga compilada. Esto es solo para recompilarla. Mientras no se publiquen mis PRs en una versión oficial ([#751](https://github.com/timschneeb/GalaxyBudsClient/pull/751), [#752](https://github.com/timschneeb/GalaxyBudsClient/pull/752), [#753](https://github.com/timschneeb/GalaxyBudsClient/pull/753)), uso una compilación propia:
 
 ```bash
 git clone https://github.com/AJHH24/GalaxyBudsClient ~/Work/GalaxyBudsClient
