@@ -106,12 +106,11 @@ Stock GalaxyBudsClient 5.2.1 works, but with it the panel can't show or pick the
 | [#752](https://github.com/timschneeb/GalaxyBudsClient/pull/752) | BlueZ watchers never unsubscribed, which broke auto-reconnect |
 | [#753](https://github.com/timschneeb/GalaxyBudsClient/pull/753) | Exposes the noise control mode and ambient level over D-Bus |
 
-Until they ship in a release, `setup` installs a build of upstream `master` with those three PRs applied. GalaxyBudsClient is GPLv3, and the source for that build is in the [fork's branches](https://github.com/AJHH24/GalaxyBudsClient/branches). To build it yourself:
+Until they ship in a release, `setup` installs a build of upstream `master` with those three PRs applied. GalaxyBudsClient is GPLv3, and the exact source for that build is commit [`16732a91`](https://github.com/AJHH24/GalaxyBudsClient/commit/16732a91cbfe32c7f70f6662f0f1d4d3617589f8) in my fork. To build it yourself:
 
 ```bash
 git clone https://github.com/AJHH24/GalaxyBudsClient && cd GalaxyBudsClient
-git switch feat/ipc-noise-control-v2
-git merge origin/fix/ipc-strip-nul-strings origin/fix/linux-bluez-watcher-leak
+git checkout --detach 16732a91cbfe32c7f70f6662f0f1d4d3617589f8
 # Needs the .NET SDK version pinned in global.json: https://learn.microsoft.com/dotnet/core/install/linux
 dotnet publish GalaxyBudsClient/GalaxyBudsClient.csproj -c Release -r linux-x64 \
   --self-contained -p:PublishSingleFile=true -o ~/.local/opt/galaxybudsclient-ipc
