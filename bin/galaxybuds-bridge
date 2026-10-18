@@ -68,7 +68,7 @@ def remember_address(address):
 
 
 def bluez_path_address(path):
-    # /org/bluez/hci0/dev_78_C1_1D_EA_65_28 -> 78:C1:1D:EA:65:28
+    # /org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF -> AA:BB:CC:DD:EE:FF
     tail = path.rsplit("/", 1)[-1]
     return tail[4:].replace("_", ":").upper() if tail.startswith("dev_") else ""
 

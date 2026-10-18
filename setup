@@ -10,19 +10,20 @@ opt="$HOME/.local/opt/galaxybudsclient-ipc"
 repo="AJHH24/omarchy-galaxybuds"
 release="gbc-ipc-1"
 asset="GalaxyBudsClient-linux-x64"
+base="https://github.com/$repo/releases/download/$release"
 
 install_patched() {
   # Built from upstream master plus PRs #751-#753; see README for how to rebuild it.
   [ "$(uname -m)" = "x86_64" ] || return 1
-  command -v gh >/dev/null && gh auth status >/dev/null 2>&1 || return 1
 
   local tmp
   tmp=$(mktemp -d)
-  gh release download "$release" -R "$repo" -p "$asset" -p SHA256SUMS -D "$tmp" || return 1
+  curl -fL --progress-bar -o "$tmp/$asset" "$base/$asset" || return 1
+  curl -fsSL -o "$tmp/SHA256SUMS" "$base/SHA256SUMS" || return 1
   local want got
   want=$(awk '{print $1}' "$tmp/SHA256SUMS")
   got=$(sha256sum "$tmp/$asset" | awk '{print $1}')
-  [ "$want" = "$got" ] || { echo "El binario descargado no coincide con su SHA256." >&2; return 1; }
+  [ "$want" = "$got" ] || { echo "The downloaded binary does not match its SHA256." >&2; return 1; }
 
   systemctl --user stop galaxybudsclient.service 2>/dev/null || true
   mkdir -p "$opt"
@@ -42,10 +43,10 @@ install_patched() {
 omarchy pkg aur add galaxybudsclient-bin
 
 if install_patched; then
-  echo "GalaxyBudsClient parcheado instalado en $opt."
+  echo "Patched GalaxyBudsClient installed in $opt."
 else
-  echo "No se pudo instalar la versión parcheada (¿gh sin sesión o equipo no x86_64?)."
-  echo "Se usa la del AUR: funciona todo menos ver y elegir el modo de escucha y el nivel de ambiente."
+  echo "Could not install the patched GalaxyBudsClient (no network, or not x86_64)."
+  echo "Falling back to the AUR build: everything works except showing and picking the listening mode and ambient level."
 fi
 
 mkdir -p "$units"
@@ -59,4 +60,4 @@ systemctl --user restart galaxybudsclient.service galaxybuds-bridge.service
 
 omarchy plugin enable ajhh.galaxybuds || true
 
-echo "Listo. La primera vez abre GalaxyBudsClient desde el lanzador y elige tus Buds en el asistente."
+echo "Done. Open GalaxyBudsClient once from the launcher and pick your Buds in its setup wizard."

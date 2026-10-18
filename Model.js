@@ -60,7 +60,7 @@ function intOr(value, fallback) {
 }
 
 // The whole of $XDG_STATE_HOME/galaxybuds/status.json, one line, written by bin/galaxybuds-bridge:
-// {"address":"78:C1:...","app_running":true,"battery":{"case":60,"left":82,"right":15},
+// {"address":"AA:BB:...","app_running":true,"battery":{"case":60,"left":82,"right":15},
 //  "connected":true,"firmware":"R640XXU0AYF1","model":"Buds4Pro","name":"Buds4 Pro",
 //  "schema_version":1,"wear":{"left":"Wearing","right":"Case"}}
 function parseStatus(raw) {
