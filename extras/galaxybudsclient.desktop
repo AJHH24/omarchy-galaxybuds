@@ -2,7 +2,7 @@
 Name=GalaxyBudsClient
 Comment=Galaxy Buds client
 GenericName=Galaxy Buds client
-Exec=$HOME/.local/opt/galaxybudsclient-ipc/GalaxyBudsClient
+Exec=@GALAXYBUDSCLIENT@
 Icon=galaxybudsclient
 Type=Application
 StartupNotify=true
