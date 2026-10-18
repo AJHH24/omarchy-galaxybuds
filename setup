@@ -1,12 +1,52 @@
 #!/bin/bash
-# omarchy plugin add only clones files, so this is the rest of the install.
+# Installs everything the plugin needs on this machine: the patched GalaxyBudsClient,
+# the bridge, both user services and the plugin itself. Safe to run again.
 
 set -euo pipefail
 
 root=$(cd "$(dirname "$0")" && pwd)
 units="$HOME/.config/systemd/user"
+opt="$HOME/.local/opt/galaxybudsclient-ipc"
+repo="AJHH24/omarchy-galaxybuds"
+release="gbc-ipc-1"
+asset="GalaxyBudsClient-linux-x64"
 
+install_patched() {
+  # Built from upstream master plus PRs #751-#753; see README for how to rebuild it.
+  [ "$(uname -m)" = "x86_64" ] || return 1
+  command -v gh >/dev/null && gh auth status >/dev/null 2>&1 || return 1
+
+  local tmp
+  tmp=$(mktemp -d)
+  gh release download "$release" -R "$repo" -p "$asset" -p SHA256SUMS -D "$tmp" || return 1
+  local want got
+  want=$(awk '{print $1}' "$tmp/SHA256SUMS")
+  got=$(sha256sum "$tmp/$asset" | awk '{print $1}')
+  [ "$want" = "$got" ] || { echo "El binario descargado no coincide con su SHA256." >&2; return 1; }
+
+  systemctl --user stop galaxybudsclient.service 2>/dev/null || true
+  mkdir -p "$opt"
+  install -m755 "$tmp/$asset" "$opt/GalaxyBudsClient"
+  rm -rf "$tmp"
+
+  mkdir -p "$units/galaxybudsclient.service.d"
+  install -m644 "$root/extras/ipc-noise-control.conf" "$units/galaxybudsclient.service.d/"
+
+  # The launcher must open the same build, or a second instance takes the D-Bus name.
+  mkdir -p "$HOME/.local/share/applications"
+  sed "s|^Exec=.*|Exec=$opt/GalaxyBudsClient|" "$root/extras/galaxybudsclient.desktop" \
+    > "$HOME/.local/share/applications/galaxybudsclient.desktop"
+}
+
+# The AUR package still provides the icon, and is the fallback if the patched build is unavailable.
 omarchy pkg aur add galaxybudsclient-bin
+
+if install_patched; then
+  echo "GalaxyBudsClient parcheado instalado en $opt."
+else
+  echo "No se pudo instalar la versión parcheada (¿gh sin sesión o equipo no x86_64?)."
+  echo "Se usa la del AUR: funciona todo menos ver y elegir el modo de escucha y el nivel de ambiente."
+fi
 
 mkdir -p "$units"
 install -m644 "$root/systemd/galaxybuds-bridge.service" "$units/"
@@ -19,4 +59,4 @@ systemctl --user restart galaxybudsclient.service galaxybuds-bridge.service
 
 omarchy plugin enable ajhh.galaxybuds || true
 
-echo "Listo. La primera vez abre GalaxyBudsClient (galaxybudsclient) y elige tus Buds en el asistente."
+echo "Listo. La primera vez abre GalaxyBudsClient desde el lanzador y elige tus Buds en el asistente."
