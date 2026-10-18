@@ -11,6 +11,8 @@ repo="AJHH24/omarchy-galaxybuds"
 release="gbc-ipc-1"
 asset="GalaxyBudsClient-linux-x64"
 base="https://github.com/$repo/releases/download/$release"
+# Pinned here, not fetched next to the binary, so a replaced release asset is rejected.
+sha256="b752f1e6b9f07d4550f2147e2b6156eed7e8767f6cec6698d1df3a49b68c515f"
 
 install_patched() {
   # Built from upstream master plus PRs #751-#753; see README for how to rebuild it.
@@ -19,11 +21,8 @@ install_patched() {
   local tmp
   tmp=$(mktemp -d)
   curl -fL --progress-bar -o "$tmp/$asset" "$base/$asset" || return 1
-  curl -fsSL -o "$tmp/SHA256SUMS" "$base/SHA256SUMS" || return 1
-  local want got
-  want=$(awk '{print $1}' "$tmp/SHA256SUMS")
-  got=$(sha256sum "$tmp/$asset" | awk '{print $1}')
-  [ "$want" = "$got" ] || { echo "The downloaded binary does not match its SHA256." >&2; return 1; }
+  echo "$sha256  $tmp/$asset" | sha256sum -c --status \
+    || { echo "The downloaded binary does not match its pinned SHA256." >&2; rm -rf "$tmp"; return 1; }
 
   systemctl --user stop galaxybudsclient.service 2>/dev/null || true
   mkdir -p "$opt"
