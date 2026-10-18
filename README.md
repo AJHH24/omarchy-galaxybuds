@@ -50,7 +50,7 @@ omarchy plugin add https://github.com/AJHH24/omarchy-galaxybuds
 `omarchy plugin add` only clones the plugin. `setup` does the rest:
 
 1. Installs `galaxybudsclient-bin` from the AUR. This asks for your sudo password.
-2. Downloads the patched GalaxyBudsClient from this repo's [release](https://github.com/AJHH24/omarchy-galaxybuds/releases/tag/gbc-ipc-1), checks its SHA256 and installs it in `~/.local/opt/galaxybudsclient-ipc`.
+2. Downloads the patched GalaxyBudsClient from this repo's [release](https://github.com/AJHH24/omarchy-galaxybuds/releases/tag/gbc-ipc-1), checks it against the SHA256 pinned in `setup` and installs it in `~/.local/opt/galaxybudsclient-ipc`.
 3. Installs and starts two user services: `galaxybudsclient` (minimized to the tray) and `galaxybuds-bridge`.
 4. Enables the widget in the bar.
 
@@ -112,8 +112,7 @@ Until they ship in a release, `setup` installs a build of upstream `master` with
 git clone https://github.com/AJHH24/GalaxyBudsClient && cd GalaxyBudsClient
 git switch feat/ipc-noise-control-v2
 git merge origin/fix/ipc-strip-nul-strings origin/fix/linux-bluez-watcher-leak
-curl -fsSL https://dot.net/v1/dotnet-install.sh | bash -s -- --jsonfile global.json --install-dir ~/.dotnet
-export DOTNET_ROOT=~/.dotnet PATH=~/.dotnet:$PATH
+# Needs the .NET SDK version pinned in global.json: https://learn.microsoft.com/dotnet/core/install/linux
 dotnet publish GalaxyBudsClient/GalaxyBudsClient.csproj -c Release -r linux-x64 \
   --self-contained -p:PublishSingleFile=true -o ~/.local/opt/galaxybudsclient-ipc
 systemctl --user restart galaxybudsclient
