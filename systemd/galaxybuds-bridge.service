@@ -7,6 +7,8 @@ After=graphical-session.target
 ExecStart=/usr/bin/python3 -I %h/.config/omarchy/plugins/ajhh.galaxybuds/bin/galaxybuds-bridge
 Restart=on-failure
 RestartSec=3
+# Files it writes (the Buds' address, in-ear state) are for you only.
+UMask=0077
 
 [Install]
 WantedBy=graphical-session.target

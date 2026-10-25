@@ -36,6 +36,10 @@ SAFETY_REFRESH_S = 60
 # Time the app gets to reconnect on its own before the bridge asks it to.
 NUDGE_DELAY_MS = 4000
 
+# The Buds' address and whether they are in your ears are personal: the folder
+# is private (0700) and so is every file in it (0600, from the umask below).
+os.umask(0o077)
+
 state_dir = os.path.join(
     os.environ.get("XDG_STATE_HOME") or os.path.expanduser("~/.local/state"), "galaxybuds"
 )
@@ -52,6 +56,14 @@ pending_refresh = None
 buds_connected = False
 
 
+def ensure_state_dir():
+    os.makedirs(state_dir, mode=0o700, exist_ok=True)
+    # Earlier versions created it with the default 0755 (and files with 0644).
+    os.chmod(state_dir, 0o700)
+    for name in os.listdir(state_dir):
+        os.chmod(os.path.join(state_dir, name), 0o600)
+
+
 def read_address():
     try:
         with open(address_path, encoding="utf-8") as f:
@@ -62,7 +74,7 @@ def read_address():
 
 def remember_address(address):
     if address and address != read_address():
-        os.makedirs(state_dir, exist_ok=True)
+        ensure_state_dir()
         with open(address_path, "w", encoding="utf-8") as f:
             f.write(address + "\n")
 
@@ -78,7 +90,7 @@ def write_status(status):
     line = json.dumps(status, sort_keys=True, ensure_ascii=False)
     if line == last_written:
         return
-    os.makedirs(state_dir, exist_ok=True)
+    ensure_state_dir()
     tmp = state_path + ".tmp"
     with open(tmp, "w", encoding="utf-8") as f:
         f.write(line + "\n")
