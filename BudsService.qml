@@ -94,18 +94,23 @@ Item {
   }
 
   function _command(path, method, arg) {
+    // gdbus parses arguments as GVariant text, so a bare word must be quoted to
+    // stay a string. Only plain identifiers and whole numbers get through: a
+    // quote or bracket would let a value rewrite the call.
+    var text = typeof arg === "number" ? (Number.isInteger(arg) ? String(arg) : "")
+      : (/^[A-Za-z0-9_]+$/.test(String(arg)) ? "'" + arg + "'" : "")
+    if (text === "") return null
     return [
       "gdbus", "call", "--session",
       "--dest", "me.timschneeberger.GalaxyBudsClient",
       "--object-path", path,
       "--method", method,
-      // gdbus parses arguments as GVariant text, so a bare word must be quoted to stay a string.
-      typeof arg === "number" ? String(arg) : "'" + arg + "'"
+      text
     ]
   }
 
   function _send(command, field, optimistic) {
-    if (!connected) return
+    if (!connected || command === null) return
     if (field !== "") {
       _pendingField = field
       _pendingValue = optimistic
